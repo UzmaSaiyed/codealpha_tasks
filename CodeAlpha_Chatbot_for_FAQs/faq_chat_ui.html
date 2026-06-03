@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FAQ Chatbot</title>
+  <style>
+    /* ── Reset & base ───────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 1rem;
+    }
+
+    /* ── Chat container ─────────────────────────────────────────────────── */
+    .chat-wrapper {
+      width: 100%;
+      max-width: 700px;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      display: flex;
+      flex-direction: column;
+      height: 92vh;
+      max-height: 820px;
+      overflow: hidden;
+    }
+
+    /* ── Header bar ─────────────────────────────────────────────────────── */
+    .chat-header {
+      background: #4f46e5;
+      color: #fff;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .avatar {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .chat-header h1 { font-size: 16px; font-weight: 600; }
+    .chat-header p  { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #4ade80; margin-left: auto;
+      box-shadow: 0 0 0 2px rgba(74,222,128,0.3);
+    }
+
+    /* ── Suggested questions ────────────────────────────────────────────── */
+    .suggestions-bar {
+      padding: 10px 1rem;
+      border-bottom: 1px solid #f0f0f0;
+      background: #fafafa;
+      flex-shrink: 0;
+    }
+    .suggestions-bar p {
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+    .suggestions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .suggestion-chip {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: #4f46e5;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .suggestion-chip:hover {
+      background: #4f46e5;
+      color: #fff;
+      border-color: #4f46e5;
+    }
+
+    /* ── Message list ───────────────────────────────────────────────────── */
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.25rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    /* Individual message row */
+    .msg-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+    }
+    .msg-row.user { flex-direction: row-reverse; }
+
+    /* Small avatar beside each message */
+    .msg-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .bot-avatar  { background: #e0e7ff; color: #4f46e5; }
+    .user-avatar { background: #d1fae5; color: #059669; }
+
+    /* The bubble itself */
+    .bubble {
+      max-width: 72%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.55;
+      word-break: break-word;
+    }
+    .bot-bubble {
+      background: #f3f4f6;
+      color: #111;
+      border-bottom-left-radius: 4px;
+    }
+    .user-bubble {
+      background: #4f46e5;
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    /* Confidence badge shown under bot answer */
+    .confidence-badge {
+      display: inline-block;
+      margin-top: 6px;
+      background: #e0e7ff;
+      color: #3730a3;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+
+    /* Matched question shown in small text */
+    .matched-q {
+      display: block;
+      margin-top: 5px;
+      font-size: 11px;
+      color: #6b7280;
+      font-style: italic;
+    }
+
+    /* Typing indicator (animated dots) */
+    .typing-dots span {
+      display: inline-block;
+      width: 7px; height: 7px;
+      background: #9ca3af;
+      border-radius: 50%;
+      margin: 0 2px;
+      animation: bounce 1.2s infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); }
+      40%            { transform: translateY(-6px); }
+    }
+
+    /* ── Input area ─────────────────────────────────────────────────────── */
+    .input-area {
+      padding: 1rem;
+      border-top: 1px solid #f0f0f0;
+      background: #fff;
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+    #userInput {
+      flex: 1;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 24px;
+      padding: 10px 16px;
+      font-size: 14px;
+      resize: none;
+      outline: none;
+      max-height: 100px;
+      overflow-y: auto;
+      font-family: inherit;
+      transition: border-color 0.15s;
+      line-height: 1.4;
+    }
+    #userInput:focus { border-color: #4f46e5; }
+    #userInput::placeholder { color: #9ca3af; }
+
+    #sendBtn {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      background: #4f46e5;
+      border: none;
+      color: #fff;
+      font-size: 18px;
+      cursor: pointer;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, transform 0.1s;
+    }
+    #sendBtn:hover  { background: #4338ca; }
+    #sendBtn:active { transform: scale(0.93); }
+    #sendBtn:disabled { background: #d1d5db; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+<div class="chat-wrapper">
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <div class="chat-header">
+    <div class="avatar">🤖</div>
+    <div>
+      <h1>ShopEasy Support Bot</h1>
+      <p>Answers your questions instantly</p>
+    </div>
+    <div class="status-dot" title="Online"></div>
+  </div>
+
+  <!-- ── Suggested questions ─────────────────────────────────────────────── -->
+  <div class="suggestions-bar">
+    <p>Suggested questions</p>
+    <div class="suggestions" id="suggestions">
+      <!-- chips are injected by JS after fetching /faqs -->
+    </div>
+  </div>
+
+  <!-- ── Message list ────────────────────────────────────────────────────── -->
+  <div class="messages" id="messages">
+    <!-- Welcome message -->
+    <div class="msg-row bot">
+      <div class="msg-avatar bot-avatar">🤖</div>
+      <div class="bubble bot-bubble">
+        👋 Hello! I'm your FAQ assistant. Ask me anything about orders, returns, payments, or shipping — I'm here to help!
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Input bar ───────────────────────────────────────────────────────── -->
+  <div class="input-area">
+    <textarea
+      id="userInput"
+      rows="1"
+      placeholder="Type your question here…"
+    ></textarea>
+    <button id="sendBtn" title="Send" onclick="sendMessage()">➤</button>
+  </div>
+
+</div>
+
+<!-- ── JavaScript ──────────────────────────────────────────────────────────── -->
+<script>
+  // ── Grab DOM elements we will use repeatedly ────────────────────────────
+  const messagesDiv  = document.getElementById("messages");
+  const userInput    = document.getElementById("userInput");
+  const sendBtn      = document.getElementById("sendBtn");
+  const suggestionsDiv = document.getElementById("suggestions");
+
+  // ── Auto-resize textarea as user types ──────────────────────────────────
+  userInput.addEventListener("input", () => {
+    userInput.style.height = "auto";                    // reset height
+    userInput.style.height = userInput.scrollHeight + "px"; // grow to fit
+  });
+
+  // ── Allow pressing Enter to send (Shift+Enter = newline) ────────────────
+  userInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();   // stop Enter from adding a newline
+      sendMessage();
+    }
+  });
+
+  // ── Load suggested FAQ questions from the backend ───────────────────────
+  async function loadSuggestions() {
+    try {
+      const res  = await fetch("/faqs");           // call our /faqs endpoint
+      const data = await res.json();
+      // Show only the first 5 questions as chips to keep it tidy
+      data.faqs.slice(0, 5).forEach(q => {
+        const chip = document.createElement("button");
+        chip.className   = "suggestion-chip";
+        chip.textContent = q;
+        chip.onclick     = () => {
+          userInput.value = q;   // fill the input box
+          sendMessage();         // send it immediately
+        };
+        suggestionsDiv.appendChild(chip);
+      });
+    } catch (err) {
+      console.warn("Could not load FAQ suggestions:", err);
+    }
+  }
+  loadSuggestions();   // run on page load
+
+  // ── Add a message bubble to the chat window ─────────────────────────────
+  function addMessage(role, html) {
+    /*
+      role     : "user" or "bot"
+      html     : the HTML content of the bubble
+    */
+    const row = document.createElement("div");
+    row.className = `msg-row ${role}`;
+
+    const avatarEl = document.createElement("div");
+    avatarEl.className = `msg-avatar ${role}-avatar`;
+    avatarEl.textContent = role === "bot" ? "🤖" : "You";
+
+    const bubble = document.createElement("div");
+    bubble.className = `bubble ${role}-bubble`;
+    bubble.innerHTML = html;
+
+    row.appendChild(avatarEl);
+    row.appendChild(bubble);
+    messagesDiv.appendChild(row);
+
+    // Scroll to the newest message
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    return row;
+  }
+
+  // ── Show animated "typing…" dots while waiting for the response ─────────
+  function showTyping() {
+    return addMessage("bot",
+      `<div class="typing-dots">
+         <span></span><span></span><span></span>
+       </div>`
+    );
+  }
+
+  // ── Main send function ───────────────────────────────────────────────────
+  async function sendMessage() {
+    const text = userInput.value.trim();
+    if (!text) return;   // do nothing if input is empty
+
+    // Show the user's message in the chat
+    addMessage("user", escapeHtml(text));
+
+    // Clear and reset the input box
+    userInput.value = "";
+    userInput.style.height = "auto";
+
+    // Disable the send button while waiting (prevents double-sending)
+    sendBtn.disabled = true;
+
+    // Show the animated typing indicator
+    const typingRow = showTyping();
+
+    try {
+      // Send the message to our Python /chat API
+      const response = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),   // send as JSON
+      });
+
+      const data = await response.json();   // parse the JSON response
+
+      // Remove the typing dots
+      typingRow.remove();
+
+      // Build the bot's reply bubble HTML
+      let bubbleHtml = `<p>${escapeHtml(data.answer)}</p>`;
+
+      // If a matching FAQ was found, show which question was matched + confidence
+      if (data.matched_question) {
+        bubbleHtml += `
+          <span class="matched-q">
+            Matched: "${escapeHtml(data.matched_question)}"
+          </span>
+          <span class="confidence-badge">
+            ${data.confidence}% match
+          </span>`;
+      }
+
+      addMessage("bot", bubbleHtml);
+
+    } catch (err) {
+      // If the server is unreachable, show a friendly error
+      typingRow.remove();
+      addMessage("bot", "⚠️ Could not reach the server. Make sure <code>faq_chatbot.py</code> is running.");
+    }
+
+    sendBtn.disabled = false;   // re-enable the send button
+    userInput.focus();          // move cursor back to the input
+  }
+
+  // ── Safety helper: prevent XSS by escaping < > & " in user-provided text ─
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+</script>
+
+</body>
+</html>
